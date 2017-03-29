@@ -17,6 +17,38 @@ namespace Haystacks
         }
 
         /// <summary>
+        /// Returns the total number of data files stored in the haystack group.
+        /// </summary>
+        /// <returns></returns>
+        public int DataFileCount()
+        {
+            int totalSize = 0;
+
+            List<string> indexFiles = Directory.GetFiles(config.StackLocation, "*.index").ToList();
+
+            foreach (string indexFile in indexFiles)
+                totalSize += (int)(new FileInfo(indexFile).Length);
+
+            return totalSize / 20;
+        }
+
+        /// <summary>
+        /// Returns the total number of bytes stored in the haystack group.
+        /// </summary>
+        /// <returns></returns>
+        public long DataSize()
+        {
+            long totalSize = 0;
+
+            List<string> stackFiles = Directory.GetFiles(config.StackLocation, "*.stack").ToList();
+
+            foreach (string stackFile in stackFiles)
+                totalSize += (new FileInfo(stackFile).Length);
+
+            return totalSize;
+        }
+
+        /// <summary>
         /// Writes a byte array of data into the haystack group.
         /// </summary>
         /// <param name="data">The data to be written.</param>
@@ -120,7 +152,7 @@ namespace Haystacks
                 indexStream.Write(BitConverter.GetBytes(info.StackNumber), 0, 4);
                 indexStream.Write(BitConverter.GetBytes(info.NeedleNumber), 0, 4);
                 indexStream.Write(BitConverter.GetBytes(info.StackOffset), 0, 8);
-                indexStream.Write(BitConverter.GetBytes(stream.Length), 0, 4);
+                indexStream.Write(BitConverter.GetBytes((int)stream.Length), 0, 4);
                 indexStream.Flush();
 
                 indexStream.Close();
@@ -231,8 +263,25 @@ namespace Haystacks
                 stackStream.Seek(stackOffset, SeekOrigin.Begin);
 
                 //read all the data for the needle
-                stackStream.CopyTo(stream);
+                byte[] buffer = new byte[81920];
+                int chunkSize = 1;
+                int bytesTransferred = 0;
 
+                while (chunkSize > 0 && bytesTransferred < needleLength)
+                {
+                    chunkSize = stackStream.Read(buffer, 0, buffer.Length);
+                    bytesTransferred += chunkSize;
+
+                    if (bytesTransferred < needleLength)
+                        stream.Write(buffer, 0, chunkSize);
+                    else
+                    {
+                        int lastChunkSize = (needleLength % buffer.Length);
+                        stream.Write(buffer, 0, lastChunkSize);
+                    }
+                }
+
+                stream.Flush();
                 stackStream.Close();
             }
         }
