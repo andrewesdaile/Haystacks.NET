@@ -23,10 +23,48 @@ namespace Haystacks
         /// <returns>Returns a NeedleInfo object with information about the data write operation.</returns>
         public NeedleInfo Write(byte[] data)
         {
+            NeedleInfo info;
+
+            using (MemoryStream stream = new MemoryStream(data))
+            {
+                info = Write(stream);
+                stream.Flush();
+                stream.Close();
+            }
+
+            return info;
+        }
+
+        /// <summary>
+        /// Writes a file into the haystack group.
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public NeedleInfo Write(string filename)
+        {
+            NeedleInfo info;
+
+            using (FileStream stream = File.Open(filename, FileMode.Open, FileAccess.Read))
+            {
+                info = Write(stream);
+                stream.Flush();
+                stream.Close();
+            }
+
+            return info;
+        }
+
+        /// <summary>
+        /// Writes a stream into the haystack group. 
+        /// </summary>
+        /// <param name="stream">The stream of data to write.</param>
+        /// <returns>Returns a NeedleInfo object with information about the data write operation.</returns>
+        public NeedleInfo Write(Stream stream)
+        {
             NeedleInfo info = new NeedleInfo();
 
             //make sure that the input is not empty
-            if (data.Length == 0)
+            if (stream.Length == 0)
                 throw new Exception("The input data cannot be empty.");
 
             //get the lists of existing files and their sizes
@@ -45,9 +83,9 @@ namespace Haystacks
             else
             {
                 //scan to find a stack with enough room
-                for (int counter = 0; counter < stackSizes.Count; counter ++)
+                for (int counter = 0; counter < stackSizes.Count; counter++)
                 {
-                    if (stackSizes[counter] + data.Length <= config.MaximumStackSize)
+                    if (stackSizes[counter] + stream.Length <= config.MaximumStackSize)
                     {
                         targetFileNumber = counter;
                         break;
@@ -75,35 +113,35 @@ namespace Haystacks
             info.StackOffset = new FileInfo(targetStack).Length;
 
             //write the index entry
-            using (FileStream stream = File.Open(targetIndex, FileMode.Open, FileAccess.Write))
+            using (FileStream indexStream = File.Open(targetIndex, FileMode.Open, FileAccess.Write))
             {
-                stream.Seek(0, SeekOrigin.End);
+                indexStream.Seek(0, SeekOrigin.End);
 
-                stream.Write(BitConverter.GetBytes(info.StackNumber), 0, 4);
-                stream.Write(BitConverter.GetBytes(info.NeedleNumber), 0, 4);
-                stream.Write(BitConverter.GetBytes(info.StackOffset), 0, 8);
-                stream.Write(BitConverter.GetBytes(data.Length), 0, 4);
-                stream.Flush();
+                indexStream.Write(BitConverter.GetBytes(info.StackNumber), 0, 4);
+                indexStream.Write(BitConverter.GetBytes(info.NeedleNumber), 0, 4);
+                indexStream.Write(BitConverter.GetBytes(info.StackOffset), 0, 8);
+                indexStream.Write(BitConverter.GetBytes(stream.Length), 0, 4);
+                indexStream.Flush();
 
-                stream.Close();
+                indexStream.Close();
             }
 
             //write the stack entry
-            using (FileStream stream = File.Open(targetStack, FileMode.Open, FileAccess.Write))
+            using (FileStream stackStream = File.Open(targetStack, FileMode.Open, FileAccess.Write))
             {
-                stream.Seek(0, SeekOrigin.End);
+                stackStream.Seek(0, SeekOrigin.End);
 
-                stream.Write(data, 0, data.Length);
-                stream.Flush();
+                stream.CopyTo(stackStream);
+                stackStream.Flush();
 
-                stream.Close();
+                stackStream.Close();
             }
 
             return info;
         }
 
         /// <summary>
-        /// Reads a chunk of data back out of a haystack.
+        /// Reads a file back out of a haystack.
         /// </summary>
         /// <param name="stackNumber">The stack that the data was stored in.</param>
         /// <param name="needleNumber">The needle number referencing the data chunk.</param>
@@ -112,6 +150,41 @@ namespace Haystacks
         {
             byte[] output;
 
+            using (MemoryStream stream = new MemoryStream())
+            {
+                Read(stream, stackNumber, needleNumber);
+                stream.Flush();
+                stream.Close();
+                output = stream.ToArray();
+            }
+
+            return output;
+        }
+
+        /// <summary>
+        /// Reads a file back out of a haystack.
+        /// </summary>
+        /// <param name="filename">The file to write the data into.</param>
+        /// <param name="stackNumber">The stack that the data was stored in.</param>
+        /// <param name="needleNumber">The needle number referencing the data chunk.</param>
+        public void Read(string filename, int stackNumber, int needleNumber)
+        {
+            using (FileStream stream = File.Open(filename, FileMode.OpenOrCreate, FileAccess.Write))
+            {
+                Read(stream, stackNumber, needleNumber);
+                stream.Flush();
+                stream.Close();
+            }
+        }
+
+        /// <summary>
+        /// Reads a file back out of a haystack.
+        /// </summary>
+        /// <param name="stream">A stream to write the data into.</param>
+        /// <param name="stackNumber">The stack that the data was stored in.</param>
+        /// <param name="needleNumber">The needle number referencing the data chunk.</param>
+        public void Read(Stream stream, int stackNumber, int needleNumber)
+        {
             //make sure that the referenced stack exists
             string targetIndex = Path.Combine(config.StackLocation, stackNumber.ToString("0000000000") + ".index");
             string targetStack = Path.Combine(config.StackLocation, stackNumber.ToString("0000000000") + ".stack");
@@ -130,41 +203,38 @@ namespace Haystacks
             long stackOffset;
             int needleLength;
 
-            using (FileStream stream = File.Open(targetIndex, FileMode.Open, FileAccess.Read))
+            using (FileStream indexStream = File.Open(targetIndex, FileMode.Open, FileAccess.Read))
             {
                 //seek to the entry for this needle
-                stream.Seek((long)needleNumber * 20L, SeekOrigin.Begin);
+                indexStream.Seek((long)needleNumber * 20L, SeekOrigin.Begin);
 
                 //skip the stack number and needle number
-                stream.Seek(8, SeekOrigin.Current);
+                indexStream.Seek(8, SeekOrigin.Current);
 
                 //read the stack offset
                 byte[] data = new byte[8];
-                stream.Read(data, 0, 8);
+                indexStream.Read(data, 0, 8);
                 stackOffset = BitConverter.ToInt64(data, 0);
 
                 //read the data length
                 data = new byte[4];
-                stream.Read(data, 0, 4);
+                indexStream.Read(data, 0, 4);
                 needleLength = BitConverter.ToInt32(data, 0);
 
-                stream.Close();
+                indexStream.Close();
             }
 
             //read data from the stack file
-            using (FileStream stream = File.Open(targetStack, FileMode.Open, FileAccess.Read))
+            using (FileStream stackStream = File.Open(targetStack, FileMode.Open, FileAccess.Read))
             {
                 //seek to the beginning of the needle
-                stream.Seek(stackOffset, SeekOrigin.Begin);
+                stackStream.Seek(stackOffset, SeekOrigin.Begin);
 
                 //read all the data for the needle
-                output = new byte[needleLength];
-                stream.Read(output, 0, needleLength);
+                stackStream.CopyTo(stream);
 
-                stream.Close();
+                stackStream.Close();
             }
-
-            return output;
         }
 
         /// <summary>
