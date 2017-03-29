@@ -180,14 +180,70 @@ namespace Haystacks
         /// <returns>A byte array containing the original data.</returns>
         public byte[] Read(int stackNumber, int needleNumber)
         {
+            //byte[] output;
+
+            //using (MemoryStream stream = new MemoryStream())
+            //{
+            //    Read(stream, stackNumber, needleNumber);
+            //    stream.Flush();
+            //    stream.Close();
+            //    output = stream.ToArray();
+            //}
+
+            //return output;
+
             byte[] output;
 
-            using (MemoryStream stream = new MemoryStream())
+            //make sure that the referenced stack exists
+            string targetIndex = Path.Combine(config.StackLocation, stackNumber.ToString("0000000000") + ".index");
+            string targetStack = Path.Combine(config.StackLocation, stackNumber.ToString("0000000000") + ".stack");
+
+            if (!File.Exists(targetIndex))
+                throw new Exception("The index file could not be found! Ensure that the stackNumber parameter is correct.");
+
+            if (!File.Exists(targetStack))
+                throw new Exception("The stack file could not be found! Ensure that the stackNumber parameter is correct.");
+
+            long indexSize = new FileInfo(targetIndex).Length;
+            if (((long)needleNumber + 1L) * 20L > indexSize)
+                throw new Exception("The requested needle could not be found in this stack!");
+
+            //read metadata from the index file
+            long stackOffset;
+            int needleLength;
+
+            using (FileStream stream = File.Open(targetIndex, FileMode.Open, FileAccess.Read))
             {
-                Read(stream, stackNumber, needleNumber);
-                stream.Flush();
+                //seek to the entry for this needle
+                stream.Seek((long)needleNumber * 20L, SeekOrigin.Begin);
+
+                //skip the stack number and needle number
+                stream.Seek(8, SeekOrigin.Current);
+
+                //read the stack offset
+                byte[] data = new byte[8];
+                stream.Read(data, 0, 8);
+                stackOffset = BitConverter.ToInt64(data, 0);
+
+                //read the data length
+                data = new byte[4];
+                stream.Read(data, 0, 4);
+                needleLength = BitConverter.ToInt32(data, 0);
+
                 stream.Close();
-                output = stream.ToArray();
+            }
+
+            //read data from the stack file
+            using (FileStream stream = File.Open(targetStack, FileMode.Open, FileAccess.Read))
+            {
+                //seek to the beginning of the needle
+                stream.Seek(stackOffset, SeekOrigin.Begin);
+
+                //read all the data for the needle
+                output = new byte[needleLength];
+                stream.Read(output, 0, needleLength);
+
+                stream.Close();
             }
 
             return output;
