@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace Haystacks
 {
+    /// <summary>
+    /// Configuration info that is passed into the Stacker class when instantiating it.
+    /// </summary>
     public struct ConfigInfo
     {
         /// <summary>

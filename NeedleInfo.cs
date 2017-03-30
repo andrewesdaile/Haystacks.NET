@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace Haystacks
 {
+    /// <summary>
+    /// Information about a needle, corresponds to an entry in an index file.
+    /// </summary>
     public struct NeedleInfo
     {
         /// <summary>
@@ -22,5 +25,10 @@ namespace Haystacks
         /// The position within the stack that the data was written to.
         /// </summary>
         public long StackOffset { get; set; }
+
+        /// <summary>
+        /// The size of the needle in bytes
+        /// </summary>
+        public int NeedleSize { get; set; }
     }
 }

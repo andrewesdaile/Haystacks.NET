@@ -143,6 +143,7 @@ namespace Haystacks
             info.StackNumber = targetFileNumber;
             info.NeedleNumber = (int)((new FileInfo(targetIndex).Length) / 20L);
             info.StackOffset = new FileInfo(targetStack).Length;
+            info.NeedleSize = (int)stream.Length;
 
             //write the index entry
             using (FileStream indexStream = File.Open(targetIndex, FileMode.Open, FileAccess.Write))
@@ -152,7 +153,7 @@ namespace Haystacks
                 indexStream.Write(BitConverter.GetBytes(info.StackNumber), 0, 4);
                 indexStream.Write(BitConverter.GetBytes(info.NeedleNumber), 0, 4);
                 indexStream.Write(BitConverter.GetBytes(info.StackOffset), 0, 8);
-                indexStream.Write(BitConverter.GetBytes((int)stream.Length), 0, 4);
+                indexStream.Write(BitConverter.GetBytes(info.NeedleSize), 0, 4);
                 indexStream.Flush();
 
                 indexStream.Close();
