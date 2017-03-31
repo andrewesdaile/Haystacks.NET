@@ -32,12 +32,12 @@ namespace TestHarness
             //write all the input files into the haystack group
             string inputLocation = Path.Combine(config.StackLocation, "input");
 
-            List<NeedleInfo> needles = new List<NeedleInfo>();
+            Dictionary<string, NeedleInfo> needles = new Dictionary<string, NeedleInfo>();
 
             foreach (string file in Directory.GetFiles(inputLocation, "*"))
             {
                 byte[] data = File.ReadAllBytes(file);
-                needles.Add(stacker.Write(data));
+                needles.Add(file, stacker.Write(data));
             }
 
             ////retrieve the files back out and put them in the output folder
@@ -66,28 +66,66 @@ namespace TestHarness
 
             using (FileStream stream = File.Open(corruptStack, FileMode.Open, FileAccess.Write))
             {
-                stream.SetLength(8661000);
+                long fileSize = new FileInfo(corruptStack).Length;
+                stream.SetLength(fileSize - 10000);
                 stream.Close();
             }
 
             //fix the corrupt files by calling recover
             stacker.Recover();
 
-            //write out the remaining files to prove that everything is OK
+            //write out the remaining files and compare inputs & outputs to prove that everything is OK
             string outputLocation = Path.Combine(config.StackLocation, "output");
+            int fileNumber = 0;
 
-            foreach (NeedleInfo needle in needles)
+            foreach (string inputFilename in needles.Keys)
             {
                 try
                 {
+                    //write the output file
+                    NeedleInfo needle = needles[inputFilename];
                     byte[] data = stacker.Read(needle.StackNumber, needle.NeedleNumber);
-                    string filename = needle.StackNumber.ToString() + "-" + needle.NeedleNumber.ToString() + ".jpg";
-                    File.WriteAllBytes(Path.Combine(outputLocation, filename), data);
+                    string outputFilename = needle.StackNumber.ToString() + "-" + needle.NeedleNumber.ToString() + ".jpg";
+                    outputFilename = Path.Combine(outputLocation, outputFilename);
+                    File.WriteAllBytes(outputFilename, data);
+
+                    //compare the input and output files
+                    if (CompareFiles(inputFilename, outputFilename))
+                        Console.WriteLine(Path.GetFileName(outputFilename) + " : OK");
+                    else
+                        Console.WriteLine(Path.GetFileName(outputFilename) + " : Error");
+
+                    fileNumber++;
                 }
                 catch
                 {
                 }
             }
+
+            Console.ReadKey();
+        }
+
+        //returns true if two files are the same
+        static bool CompareFiles(string filename1, string filename2)
+        {
+            byte[] data1 = File.ReadAllBytes(filename1);
+            byte[] data2 = File.ReadAllBytes(filename2);
+
+            if (data1.Length != data2.Length)
+                return false;
+
+            bool isIdentical = true;
+
+            for (int counter = 0; counter < data1.Length; counter ++)
+            {
+                if (data1[counter] != data2[counter])
+                {
+                    isIdentical = false;
+                    break;
+                }
+            }
+
+            return isIdentical;
         }
 
     }
