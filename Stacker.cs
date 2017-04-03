@@ -159,15 +159,29 @@ namespace Haystacks
                 indexStream.Close();
             }
 
+            ////write the stack entry
+            //using (FileStream stackStream = File.Open(targetStack, FileMode.Open, FileAccess.Write))
+            //{
+            //    stackStream.Seek(0, SeekOrigin.End);
+
+            //    stream.CopyTo(stackStream);
+            //    stackStream.Flush();
+
+            //    stackStream.Close();
+            //}
+
             //write the stack entry
-            using (FileStream stackStream = File.Open(targetStack, FileMode.Open, FileAccess.Write))
+            byte[] buffer = new byte[WinFileIO.BlockSize];
+            using (WinFileIO writer = new WinFileIO(buffer))
             {
-                stackStream.Seek(0, SeekOrigin.End);
+                writer.OpenForWriting(targetStack);
+                writer.Position = writer.Length;
 
-                stream.CopyTo(stackStream);
-                stackStream.Flush();
-
-                stackStream.Close();
+                while (stream.Position < stream.Length)
+                {
+                    int bytesRead = stream.Read(buffer, 0, WinFileIO.BlockSize);
+                    writer.WriteBlocks(bytesRead);
+                }
             }
 
             return info;
@@ -257,20 +271,51 @@ namespace Haystacks
                 indexStream.Close();
             }
 
+            ////read data from the stack file
+            //using (FileStream stackStream = File.Open(targetStack, FileMode.Open, FileAccess.Read))
+            //{
+            //    //seek to the beginning of the needle
+            //    stackStream.Seek(stackOffset, SeekOrigin.Begin);
+
+            //    //read all the data for the needle
+            //    byte[] buffer = new byte[81920];
+            //    int chunkSize = 1;
+            //    long bytesTransferred = 0;
+
+            //    while (chunkSize > 0 && bytesTransferred <= needleLength)
+            //    {
+            //        chunkSize = stackStream.Read(buffer, 0, buffer.Length);
+            //        bytesTransferred += chunkSize;
+
+            //        if (bytesTransferred <= needleLength)
+            //            stream.Write(buffer, 0, chunkSize);
+            //        else
+            //        {
+            //            int lastChunkSize = (int)(needleLength % buffer.Length);
+            //            stream.Write(buffer, 0, lastChunkSize);
+            //        }
+            //    }
+
+            //    stream.Flush();
+            //    stackStream.Close();
+            //}
+
             //read data from the stack file
-            using (FileStream stackStream = File.Open(targetStack, FileMode.Open, FileAccess.Read))
+            byte[] buffer = new byte[WinFileIO.BlockSize];
+            using (WinFileIO reader = new WinFileIO(buffer))
             {
+                reader.OpenForReading(targetStack);
+
                 //seek to the beginning of the needle
-                stackStream.Seek(stackOffset, SeekOrigin.Begin);
+                reader.Position = stackOffset;
 
                 //read all the data for the needle
-                byte[] buffer = new byte[81920];
                 int chunkSize = 1;
                 long bytesTransferred = 0;
 
                 while (chunkSize > 0 && bytesTransferred <= needleLength)
                 {
-                    chunkSize = stackStream.Read(buffer, 0, buffer.Length);
+                    chunkSize = reader.ReadBlocks(WinFileIO.BlockSize);
                     bytesTransferred += chunkSize;
 
                     if (bytesTransferred <= needleLength)
@@ -281,9 +326,6 @@ namespace Haystacks
                         stream.Write(buffer, 0, lastChunkSize);
                     }
                 }
-
-                stream.Flush();
-                stackStream.Close();
             }
         }
 

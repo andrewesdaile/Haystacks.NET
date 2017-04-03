@@ -107,8 +107,9 @@ namespace TestHarness
 
                     fileNumber++;
                 }
-                catch
+                catch (Exception ex)
                 {
+
                 }
             }
         }
