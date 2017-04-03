@@ -141,9 +141,9 @@ namespace Haystacks
 
             //fill in the information struct
             info.StackNumber = targetFileNumber;
-            info.NeedleNumber = (int)((new FileInfo(targetIndex).Length) / 20L);
+            info.NeedleNumber = (int)((new FileInfo(targetIndex).Length) / 24L);
             info.StackOffset = new FileInfo(targetStack).Length;
-            info.NeedleSize = (int)stream.Length;
+            info.NeedleSize = stream.Length;
 
             //write the index entry
             using (FileStream indexStream = File.Open(targetIndex, FileMode.Open, FileAccess.Write))
@@ -153,7 +153,7 @@ namespace Haystacks
                 indexStream.Write(BitConverter.GetBytes(info.StackNumber), 0, 4);
                 indexStream.Write(BitConverter.GetBytes(info.NeedleNumber), 0, 4);
                 indexStream.Write(BitConverter.GetBytes(info.StackOffset), 0, 8);
-                indexStream.Write(BitConverter.GetBytes(info.NeedleSize), 0, 4);
+                indexStream.Write(BitConverter.GetBytes(info.NeedleSize), 0, 8);
                 indexStream.Flush();
 
                 indexStream.Close();
@@ -181,70 +181,14 @@ namespace Haystacks
         /// <returns>A byte array containing the original data.</returns>
         public byte[] Read(int stackNumber, int needleNumber)
         {
-            //byte[] output;
-
-            //using (MemoryStream stream = new MemoryStream())
-            //{
-            //    Read(stream, stackNumber, needleNumber);
-            //    stream.Flush();
-            //    stream.Close();
-            //    output = stream.ToArray();
-            //}
-
-            //return output;
-
             byte[] output;
 
-            //make sure that the referenced stack exists
-            string targetIndex = Path.Combine(config.StackLocation, stackNumber.ToString("0000000000") + ".index");
-            string targetStack = Path.Combine(config.StackLocation, stackNumber.ToString("0000000000") + ".stack");
-
-            if (!File.Exists(targetIndex))
-                throw new Exception("The index file could not be found! Ensure that the stackNumber parameter is correct.");
-
-            if (!File.Exists(targetStack))
-                throw new Exception("The stack file could not be found! Ensure that the stackNumber parameter is correct.");
-
-            long indexSize = new FileInfo(targetIndex).Length;
-            if (((long)needleNumber + 1L) * 20L > indexSize)
-                throw new Exception("The requested needle could not be found in this stack!");
-
-            //read metadata from the index file
-            long stackOffset;
-            int needleLength;
-
-            using (FileStream stream = File.Open(targetIndex, FileMode.Open, FileAccess.Read))
+            using (MemoryStream stream = new MemoryStream())
             {
-                //seek to the entry for this needle
-                stream.Seek((long)needleNumber * 20L, SeekOrigin.Begin);
-
-                //skip the stack number and needle number
-                stream.Seek(8, SeekOrigin.Current);
-
-                //read the stack offset
-                byte[] data = new byte[8];
-                stream.Read(data, 0, 8);
-                stackOffset = BitConverter.ToInt64(data, 0);
-
-                //read the data length
-                data = new byte[4];
-                stream.Read(data, 0, 4);
-                needleLength = BitConverter.ToInt32(data, 0);
-
+                Read(stream, stackNumber, needleNumber);
+                stream.Flush();
                 stream.Close();
-            }
-
-            //read data from the stack file
-            using (FileStream stream = File.Open(targetStack, FileMode.Open, FileAccess.Read))
-            {
-                //seek to the beginning of the needle
-                stream.Seek(stackOffset, SeekOrigin.Begin);
-
-                //read all the data for the needle
-                output = new byte[needleLength];
-                stream.Read(output, 0, needleLength);
-
-                stream.Close();
+                output = stream.ToArray();
             }
 
             return output;
@@ -285,17 +229,17 @@ namespace Haystacks
                 throw new Exception("The stack file could not be found! Ensure that the stackNumber parameter is correct.");
 
             long indexSize = new FileInfo(targetIndex).Length;
-            if (((long)needleNumber + 1L) * 20L > indexSize)
+            if (((long)needleNumber + 1L) * 24L > indexSize)
                 throw new Exception("The requested needle could not be found in this stack!");
 
             //read metadata from the index file
             long stackOffset;
-            int needleLength;
+            long needleLength;
 
             using (FileStream indexStream = File.Open(targetIndex, FileMode.Open, FileAccess.Read))
             {
                 //seek to the entry for this needle
-                indexStream.Seek((long)needleNumber * 20L, SeekOrigin.Begin);
+                indexStream.Seek((long)needleNumber * 24L, SeekOrigin.Begin);
 
                 //skip the stack number and needle number
                 indexStream.Seek(8, SeekOrigin.Current);
@@ -306,9 +250,9 @@ namespace Haystacks
                 stackOffset = BitConverter.ToInt64(data, 0);
 
                 //read the data length
-                data = new byte[4];
-                indexStream.Read(data, 0, 4);
-                needleLength = BitConverter.ToInt32(data, 0);
+                data = new byte[8];
+                indexStream.Read(data, 0, 8);
+                needleLength = BitConverter.ToInt64(data, 0);
 
                 indexStream.Close();
             }
@@ -322,18 +266,18 @@ namespace Haystacks
                 //read all the data for the needle
                 byte[] buffer = new byte[81920];
                 int chunkSize = 1;
-                int bytesTransferred = 0;
+                long bytesTransferred = 0;
 
-                while (chunkSize > 0 && bytesTransferred < needleLength)
+                while (chunkSize > 0 && bytesTransferred <= needleLength)
                 {
                     chunkSize = stackStream.Read(buffer, 0, buffer.Length);
                     bytesTransferred += chunkSize;
 
-                    if (bytesTransferred < needleLength)
+                    if (bytesTransferred <= needleLength)
                         stream.Write(buffer, 0, chunkSize);
                     else
                     {
-                        int lastChunkSize = (needleLength % buffer.Length);
+                        int lastChunkSize = (int)(needleLength % buffer.Length);
                         stream.Write(buffer, 0, lastChunkSize);
                     }
                 }
@@ -356,14 +300,14 @@ namespace Haystacks
             {
                 long indexSize = new FileInfo(indexFile).Length;
 
-                if (indexSize % 20L != 0L)
+                if (indexSize % 24L != 0L)
                 {
                     //fault during index write
 
                     //chop off the garbage from the end of the index file
                     using (FileStream stream = File.Open(indexFile, FileMode.Open, FileAccess.Write))
                     {
-                        stream.SetLength((indexSize / 20L) * 20L);
+                        stream.SetLength((indexSize / 24L) * 24L);
                         stream.Close();
                     }
                 }
@@ -373,12 +317,12 @@ namespace Haystacks
 
                     //read metadata from the index file
                     long stackOffset;
-                    int needleLength;
+                    long needleLength;
 
                     using (FileStream stream = File.Open(indexFile, FileMode.Open, FileAccess.Read))
                     {
                         //seek to the entry for the last needle
-                        stream.Seek(-20L, SeekOrigin.End);
+                        stream.Seek(-24L, SeekOrigin.End);
 
                         //skip the stack number and needle number
                         stream.Seek(8, SeekOrigin.Current);
@@ -389,9 +333,9 @@ namespace Haystacks
                         stackOffset = BitConverter.ToInt64(data, 0);
 
                         //read the data length
-                        data = new byte[4];
-                        stream.Read(data, 0, 4);
-                        needleLength = BitConverter.ToInt32(data, 0);
+                        data = new byte[8];
+                        stream.Read(data, 0, 8);
+                        needleLength = BitConverter.ToInt64(data, 0);
 
                         stream.Close();
                     }
@@ -408,7 +352,7 @@ namespace Haystacks
                         //chop off the last entry of the index file
                         using (FileStream stream = File.Open(indexFile, FileMode.Open, FileAccess.Write))
                         {
-                            stream.SetLength(indexSize - 20L);
+                            stream.SetLength(indexSize - 24L);
                             stream.Close();
                         }
 

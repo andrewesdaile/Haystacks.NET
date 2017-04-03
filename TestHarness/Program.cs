@@ -11,11 +11,22 @@ namespace TestHarness
 {
     class Program
     {
+        static string dataLocation;
+
         static void Main(string[] args)
         {
-            //remove old files if the demo was run before
-            string dataLocation = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Data");
+            dataLocation = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Data");
 
+            GeneralTest();
+
+            //TestLargeFile();
+
+            Console.ReadKey();
+        }
+
+        static void GeneralTest()
+        {
+            //remove old files if the demo was run before
             foreach (string filename in Directory.GetFiles(dataLocation, "*.index"))
                 File.Delete(filename);
 
@@ -60,7 +71,6 @@ namespace TestHarness
                 stream.Flush();
                 stream.Close();
             }
-
             //simulate a corrupted stack by chopping some data from the end of a stack file
             string corruptStack = Path.Combine(dataLocation, "0000000000.stack");
 
@@ -101,8 +111,45 @@ namespace TestHarness
                 {
                 }
             }
+        }
 
-            Console.ReadKey();
+        static void TestLargeFile()
+        {
+            string largeFileInput = Path.Combine(dataLocation, "largefile.bin");
+            string largeFileOutput = Path.Combine(dataLocation, "largefile-out.bin");
+
+            //create the test file of pseudorandom data
+            Console.WriteLine("Creating 3GB test file");
+            long fileLength = 3000000000;
+            Random random = new Random();
+
+            using (FileStream stream = File.Open(largeFileInput, FileMode.Create, FileAccess.Write))
+            {
+                for (int counter = 0; counter < (fileLength / 81920L) + 1; counter++)
+                {
+                    byte[] buffer = new byte[81920];
+                    random.NextBytes(buffer);
+                    stream.Write(buffer, 0, buffer.Length);
+                    stream.Flush();
+                }
+
+                stream.Close();
+            }
+
+            //initialise stacker
+            ConfigInfo config = new ConfigInfo();
+            config.StackLocation = dataLocation;
+            config.MaximumStackSize = 10L * 1000L * 1000L * 1000L;
+
+            Stacker stacker = new Stacker(config);
+
+            //write the file to the stack
+            Console.WriteLine("Writing the test file to the stack");
+            NeedleInfo needle = stacker.Write(largeFileInput);
+
+            //read the file back from the stack
+            Console.WriteLine("Reading the test file from the stack");
+            stacker.Read(largeFileOutput, 0, 0);
         }
 
         //returns true if two files are the same

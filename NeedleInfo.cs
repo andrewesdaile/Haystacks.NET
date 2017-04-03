@@ -22,13 +22,13 @@ namespace Haystacks
         public int NeedleNumber { get; set; }
 
         /// <summary>
-        /// The position within the stack that the data was written to.
+        /// The position within the stack that the data was written to, i.e. where the needle starts.
         /// </summary>
         public long StackOffset { get; set; }
 
         /// <summary>
-        /// The size of the needle in bytes
+        /// The size of the needle in bytes.
         /// </summary>
-        public int NeedleSize { get; set; }
+        public long NeedleSize { get; set; }
     }
 }
