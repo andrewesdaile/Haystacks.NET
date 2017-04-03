@@ -34,14 +34,5 @@ Index entries have the following format:
 - StackNumber : (32 bits) The ID number of the stack that contains the needle (stacks are numbered sequentially).
 - NeedleNumber : (32 bits) The ID number of the needle within the stack (needles are numbered sequentially).
 - StackOffset : (64 bits) The offset position at which the needle begins in the stack file.
-- NeedleSize : (32 bits) The number of bytes in the needle.
-
-Limitations
----
-
-Maximum size of input files:
-2^31 = 2,147,483,647 bytes = 2.15 GB
-
-Maximum size of each haystack:
-2^63 = 9,223,372,036,854,775,807 = 9223.37 PB
+- NeedleSize : (64 bits) The number of bytes in the needle.
 
