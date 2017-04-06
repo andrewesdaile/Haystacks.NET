@@ -29,7 +29,7 @@ namespace Haystacks
             foreach (string indexFile in indexFiles)
                 totalSize += (int)(new FileInfo(indexFile).Length);
 
-            return totalSize / 20;
+            return totalSize / 24;
         }
 
         /// <summary>
